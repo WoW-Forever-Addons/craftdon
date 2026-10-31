@@ -245,9 +245,11 @@ function ns.ShareProf()
   ns.SetOwn("prof", ns.EncodeProf(mine))
 end
 
+-- (31.10.2026, Runde 4) delta: after a newly learned recipe the guild fetches only the change (GuildShared/Comm.lua)
 ns.RegisterKind("prof", {
+  delta = true,
   validate = function(d) return d:match("^[%w:,|#;=x%.]+$") ~= nil and ns.DecodeProf(d) ~= nil end,
-  onUpdate = function() ns.InvalidateCrafters() end,
+  onUpdate = function() ns.InvalidateCraftersSoon() end,
 })
 
 ---------------------------------------------------------------------------
@@ -282,8 +284,9 @@ function ns.ShareSeen()
 end
 
 ns.RegisterKind("seen", {
+  delta = true,
   validate = function(d) return d:match("^[%w:,|#;=x%.]+$") ~= nil and ns.DecodeProf(d) ~= nil end,
-  onUpdate = function() ns.InvalidateCrafters() end,
+  onUpdate = function() ns.InvalidateCraftersSoon() end,
 })
 
 ---------------------------------------------------------------------------
@@ -292,6 +295,23 @@ ns.RegisterKind("seen", {
 local index -- { crafters = { [spell] = { owner, ... } }, skills = { [prof] = { { owner, rank, max, n } } }, details }
 
 function ns.InvalidateCrafters() index = nil end
+
+-- (31.10.2026, LEISTUNG_PRUEFUNG 21) received sets come in bursts (login): the index is rebuilt INDEX_WAIT seconds after
+-- the last one, until then the old one answers; then the open window repaints
+local INDEX_WAIT = 2
+local lastSet, indexTimer = 0, false
+local function IndexDue()
+  local left = lastSet + INDEX_WAIT - GetTime()
+  if left > 0 then ns.After(left, IndexDue) return end
+  indexTimer = false
+  index = nil
+  if ns.OnDataChanged then ns.OnDataChanged("prof") end
+end
+function ns.InvalidateCraftersSoon()
+  if not index then return end
+  lastSet = GetTime()
+  if not indexTimer then indexTimer = true ns.After(INDEX_WAIT, IndexDue) end
+end
 
 local function BuildIndex()
   index = { crafters = {}, skills = {}, details = {}, owners = {} }

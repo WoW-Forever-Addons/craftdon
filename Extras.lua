@@ -56,8 +56,19 @@ local function ItemLeft(item)
   return math.max(0, start + duration - GetTime())
 end
 
+-- (31.10.2026, LEISTUNG_PRUEFUNG 21) time() has whole seconds and GetTime() not, so the ready time read wobbled by a
+-- second and every read in combat (SPELL_UPDATE_COOLDOWN) announced the set anew: the time is rounded up to the minute,
+-- and a value within a minute of the one already shared stays
+local function Ready(key, at, old)
+  if at <= 0 then return 0 end
+  if old and old[key] and old[key] > 0 and math.abs(old[key] - at) <= 60 then return old[key] end
+  return math.ceil(at / 60) * 60
+end
+
 function ns.ReadCooldowns()
   local parts, now = { "1" }, time()
+  local own = ns.GetSet("cd", ns.MyName() or "")
+  local old = own and ns.DecodeCooldowns(own.d)
   for _, cd in ipairs(ns.COOLDOWNS) do
     local left
     if cd.item then
@@ -67,7 +78,7 @@ function ns.ReadCooldowns()
         if Known(sp) then left = SpellLeft(sp) break end
       end
     end
-    if left then parts[#parts + 1] = cd.key .. "," .. ns.B36(left > 0 and math.floor(now + left) or 0) end
+    if left then parts[#parts + 1] = cd.key .. "," .. ns.B36(Ready(cd.key, left > 0 and now + left or 0, old)) end
   end
   if #parts == 1 then return false end
   return ns.SetOwn("cd", table.concat(parts, ";"))

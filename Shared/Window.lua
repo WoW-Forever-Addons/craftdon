@@ -337,6 +337,7 @@ function ns.OpenTab(key)
 end
 
 function ns.WindowState() return panel, current, pages, nav end -- (tests)
+function ns.WindowOpen() return panel ~= nil and panel:IsShown() end
 
 -- roster or data changed: repaint the open page (once per half second at most)
 local queued = false
